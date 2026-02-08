@@ -1,0 +1,4 @@
+log*
+test.py
+fetcher/fetch.py
+fetcher/data.json
