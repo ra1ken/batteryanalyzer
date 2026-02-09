@@ -1,26 +1,17 @@
 import os
 import time
-import glob
-
+import datetime as dt
+import csv
 
 path = "/sys/class/power_supply/BAT0"
 
 def header():
-    header =  ['capacity' , 'voltage', 'temperature', 'wattage'] 
+    header =  ['capacity' , 'voltage', 'temperature', 'wattage', 'unix_timestamp'] 
     print("writing header...")
     with open(f"battery.csv" , "w") as f:
         f.write(", ".join(map(str,header)) + "\n")
 
 def reset():
-    logs = glob.glob("log*.txt")
-
-    if logs == []:
-        print("no logs present")
-    else : 
-        print("deleting previous logs")
-        for log in logs:
-            os.remove(log) 
-    #remove csv
     if os.path.exists("battery.csv"):
         os.remove("battery.csv")
         print("removing previous test")
@@ -34,33 +25,45 @@ def bat():
     with open(f"{path}/capacity", "r") as f_in: 
         read = f_in.readline()
         capacity = read
-        with open(f"logc.txt", "a") as f_out:
-            f_out.write(f"capacity: {read.strip()}%\n")
     with open(f"{path}/voltage_now", "r") as f_in: 
         read = f_in.readline()
         voltage = read
-        with open(f"logv.txt", "a") as f_out:
-            f_out.write(f"voltage: {(int(read)/1000000)} V\n")
     with open(f"/sys/class/thermal/thermal_zone8/temp", "r") as f_in:
         read = f_in.readline()
         temp = read
-        with open(f"logt.txt", "a") as f_out: 
-            f_out.write(f"internal temperature {read[:-4]}°C\n")
     with open(f"{path}/power_now", "r") as f_in: 
         read = f_in.readline()
         wattage = read
-        with open(f"logp.txt", "a") as f_out:
-            f_out.write(f"wattage: {read.strip()} W\n")
-    data = [capacity.strip(),(int(voltage)/1000000),temp[:-4],wattage.strip()]
+    data = [capacity.strip(),(int(voltage)/1000000),int(temp)/1000,int(wattage.strip())/1000000,int(dt.datetime.now().timestamp())]
     print(data)
     with open(f"battery.csv" , "a") as f:
         f.write(", ".join(map(str,data))  + "\n")
     time.sleep(10)
-    # redo to csv
 
+def avg():
+    for i in range (1,4):
+        array = []
+        with open('battery.csv') as csv_file:
+            csv_reader = csv.reader(csv_file, delimiter=',')
+            rowCount = 0
 
+            for row in csv_reader:
+                    if rowCount == 0:
+                        rowCount =+ 1
+                    else:
+                        cislo = float(row[i])
+                        rowCount = rowCount+ 1
+                        array.append(cislo)
+        total = sum(array)
+        totalRows = rowCount -1
+        avg = total/totalRows
+        if i == 1:
+            print(f"voltage: {round(avg, 2)}V")
+        elif i == 2:
+            print(f"internal temperature: {round(avg, 2)}°C")
+        elif i == 3:
+            print(f"wattage: {round(avg, 2)}W")
 
-#i want to save all the values above into an array, then write the values of the array into a csv row, then empty the array and jump to the next row 
 
 print("choose your mode\n0. run indefinitely (cancel with ctrl+c)\n1. set minutes")
 mode = int(input())
@@ -70,7 +73,8 @@ if mode == 0 :
         try:
             bat()
         except KeyboardInterrupt :
-            print("\nctrl + c sent, shutting down... log saved to battery.csv")
+            print("\nctrl + c sent, here are your averages, full log in battery.csv")
+            avg()
             break
 elif mode == 1:
     reset()
@@ -82,20 +86,13 @@ elif mode == 1:
         cyclesmin = 6
         while cyclesmin > 0:
             bat()
-            cyclesmin = cyclesmin - 1
+            cyclesmin -= 1
             print(f"currnet small cycle: {cyclesmin}")
         else :
             minutes = minutes - 1
             print(f"current big cycle {minutes}")
+            if minutes == 0:
+                print("finished! here are your averages, full log in battery.csv")
+                avg()
 else:
     print("invalid choice")
-
-
-
-
-
-# /sys/class/thermal/thermal_zone8/temp (battery temp) 
-# > cat /sys/class/thermal/thermal_zone8/temp 53000
-# csv format (for now)
-# timestamp,wattage consumption, temp, voltage 
-# will make it read and get averages after either a keyboardInterrupt or after a selected time. 
